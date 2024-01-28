@@ -45,6 +45,11 @@ extern void lcd_esd_enable(bool on);
 static bool screen_on = true;
 #endif
 
+#ifdef CONFIG_TARGET_PROJECT_C3Q
+//dt2w variable
+bool gesture_flag = false;
+#endif
+
 enum dsi_dsc_ratio_type {
 	DSC_8BPC_8BPP,
 	DSC_10BPC_8BPP,
@@ -334,6 +339,12 @@ static int dsi_panel_gpio_release(struct dsi_panel *panel)
 	if (gpio_is_valid(panel->bl_config.en_gpio))
 		gpio_free(panel->bl_config.en_gpio);
 
+	if (gpio_is_valid(r_config->lcm_enn_gpio))
+		gpio_free(r_config->lcm_enn_gpio);
+
+	if (gpio_is_valid(r_config->lcm_enp_gpio))
+		gpio_free(r_config->lcm_enp_gpio);
+
 	if (gpio_is_valid(panel->reset_config.lcd_mode_sel_gpio))
 		gpio_free(panel->reset_config.lcd_mode_sel_gpio);
 
@@ -381,6 +392,25 @@ static int dsi_panel_reset(struct dsi_panel *panel)
 			goto exit;
 		}
 	}
+	if (gpio_is_valid(r_config->lcm_enp_gpio)) {
+		rc = gpio_direction_output(r_config->lcm_enp_gpio, 1);
+		if (rc) {
+			pr_err("unable to set dir forr_config->lcm_enp_gpio rc=%d\n", rc);
+			goto exit;
+		}
+	}
+
+	msleep(5);
+
+	if (gpio_is_valid(r_config->lcm_enn_gpio)) {
+		rc = gpio_direction_output(r_config->lcm_enn_gpio, 1);
+		if (rc) {
+			pr_err("unable to set dir forr_config->lcm_enn_gpio rc=%d\n", rc);
+			goto exit;
+		}
+	}
+
+	msleep(5);
 	usleep_range(10000, 10010);
 	if (r_config->count) {
 		rc = gpio_direction_output(r_config->reset_gpio,
@@ -458,12 +488,22 @@ static int dsi_panel_set_pinctrl_state(struct dsi_panel *panel, bool enable)
 	return rc;
 }
 
+#ifdef CONFIG_TARGET_PROJECT_C3Q
+static bool fts_ts_variant = false;
+void set_fts_ts_variant(bool en)
+{
+	fts_ts_variant = en;
+}
+EXPORT_SYMBOL(set_fts_ts_variant);
+#endif
 
 static int dsi_panel_power_on(struct dsi_panel *panel)
 {
 	int rc = 0;
+#ifdef CONFIG_TARGET_PROJECT_K7T
 	int power_status = DRM_PANEL_BLANK_UNBLANK;
 	struct drm_panel_notifier notifier_data;
+#endif
 
 	rc = dsi_pwr_enable_regulator(&panel->power_info, true);
 	if (rc) {
@@ -479,11 +519,13 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 	}
 
 	rc = dsi_panel_reset(panel);
+#ifdef CONFIG_TARGET_PROJECT_K7T
 	notifier_data.data = &power_status;
 	notifier_data.refresh_rate = 90;
 	notifier_data.id = 1;
 	DSI_INFO("[%s]: dsi panel power on\n", __func__);
 	drm_panel_notifier_call_chain(&panel->drm_panel, DRM_PANEL_EVENT_BLANK, &notifier_data);
+#endif
 	if (rc) {
 		DSI_ERR("[%s] failed to reset panel, rc=%d\n", panel->name, rc);
 		goto error_disable_gpio;
@@ -498,6 +540,12 @@ error_disable_gpio:
 	if (gpio_is_valid(panel->bl_config.en_gpio))
 		gpio_set_value(panel->bl_config.en_gpio, 0);
 
+	if (gpio_is_valid(panel->reset_config.lcm_enp_gpio))
+		gpio_set_value(panel->reset_config.lcm_enp_gpio, 0);
+
+	if (gpio_is_valid(panel->reset_config.lcm_enn_gpio))
+		gpio_set_value(panel->reset_config.lcm_enn_gpio, 0);
+
 	(void)dsi_panel_set_pinctrl_state(panel, false);
 
 error_disable_vregs:
@@ -508,6 +556,7 @@ exit:
 }
 
 #ifdef CONFIG_TARGET_PROJECT_C3Q
+extern bool get_lct_tp_gesture_status(void);
 static bool lcd_reset_keep_high = false;
 void set_lcd_reset_gpio_keep_high(bool en)
 {
@@ -520,14 +569,32 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 {
 	int rc = 0;
 
+#ifdef CONFIG_TARGET_PROJECT_C3Q
+	//usleep_range(11000, 11010);	
+	if (get_lct_tp_gesture_status()) 
+  			gesture_flag = true;
+	else gesture_flag = false;
+
+#endif
+
 	usleep_range(11000, 11010);
 
 	if (gpio_is_valid(panel->reset_config.disp_en_gpio))
 		gpio_set_value(panel->reset_config.disp_en_gpio, 0);
 
 	if (gpio_is_valid(panel->reset_config.reset_gpio) &&
-					!panel->reset_gpio_always_on)
+					!panel->reset_gpio_always_on) {
+		#ifdef CONFIG_TARGET_PROJECT_C3Q
+		if (lcd_reset_keep_high)
+			DSI_WARN("%s: lcd-reset-gpio keep high\n", __func__);
+		else {
+			gpio_set_value(panel->reset_config.reset_gpio, 0);
+			DSI_ERR("%s: lcd-reset_gpio = 0\n", __func__);
+		}
+		#else
 		gpio_set_value(panel->reset_config.reset_gpio, 0);
+		#endif
+	}
 
 	if (gpio_is_valid(panel->reset_config.lcd_mode_sel_gpio))
 		gpio_set_value(panel->reset_config.lcd_mode_sel_gpio, 0);
@@ -539,12 +606,34 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 				 rc);
 	}
 
+	if (!gesture_flag) 
+	{
+		msleep(10);
+
+		if (gpio_is_valid(panel->reset_config.lcm_enn_gpio))
+		{
+			gpio_set_value(panel->reset_config.lcm_enn_gpio, 0);
+			gpio_direction_output(panel->reset_config.lcm_enn_gpio, 0);
+		}
+
+		msleep(5);
+
+		if (gpio_is_valid(panel->reset_config.lcm_enp_gpio))
+		{
+			gpio_set_value(panel->reset_config.lcm_enp_gpio, 0);
+			gpio_direction_output(panel->reset_config.lcm_enp_gpio, 0);
+		}
+	}
+
+//for dt2w nvt but not for fts variant
+if(fts_ts_variant){
 	rc = dsi_panel_set_pinctrl_state(panel, false);
 	if (rc) {
 		DSI_ERR("[%s] failed set pinctrl state, rc=%d\n", panel->name,
 		       rc);
 	}
 
+}
 	rc = dsi_pwr_enable_regulator(&panel->power_info, false);
 	if (rc)
 		DSI_ERR("[%s] failed to enable vregs, rc=%d\n",
@@ -697,6 +786,13 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 
 	dsi = &panel->mipi_device;
 	bl = &panel->bl_config;
+
+	// from https://github.com/MiCode/vendor_opensource_display-drivers/blob/xun-t-oss/msm/dsi/dsi_panel.c
+	//bl_lvl = bl_lvl * 9 / 10;
+	if (panel->bl_config.bl_move_high_8b) {
+        	bl_lvl = bl_lvl << 5;
+		bl_lvl = (((bl_lvl & 0xff00)) | ((bl_lvl & 0xe0) >> 4));
+	}
 
 	if (panel->bl_config.bl_inverted_dbv)
 		bl_lvl = (((bl_lvl & 0xff) << 8) | (bl_lvl >> 8));
@@ -1913,11 +2009,17 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-post-mode-switch-on-command",
 	"qcom,mdss-dsi-qsync-on-commands",
 	"qcom,mdss-dsi-qsync-off-commands",
+#ifdef CONFIG_TARGET_PROJECT_C3Q
+	"qcom,mdss-dsi-dispparam-cabc-ui-on-command",
+	"qcom,mdss-dsi-dispparam-cabc-still-on-command",
+	"qcom,mdss-dsi-dispparam-cabc-movice-on-command",
+	"qcom,mdss-dsi-dispparam-cabc-off-command",
+#endif
+        "qcom,mdss-dsi-dispparam-hbm-on-command",
+        "qcom,mdss-dsi-dispparam-hbm-off-command",
 #ifdef CONFIG_TARGET_PROJECT_K7T
 	"qcom,mdss-dsi-doze-hbm-command",
 	"qcom,mdss-dsi-doze-lbm-command",
-	"qcom,mdss-dsi-dispparam-hbm-on-command",
-	"qcom,mdss-dsi-dispparam-hbm-off-command",
 	"qcom,mdss-dsi-hbm1-on-command",
 	"qcom,mdss-dsi-hbm2-on-command",
 	"qcom,mdss-dsi-dispparam-bc-90hz-command",
@@ -1949,11 +2051,17 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-post-mode-switch-on-command-state",
 	"qcom,mdss-dsi-qsync-on-commands-state",
 	"qcom,mdss-dsi-qsync-off-commands-state",
+#ifdef CONFIG_TARGET_PROJECT_C3Q
+	"qcom,mdss-dsi-dispparam-cabc-ui-on-command-status",
+	"qcom,mdss-dsi-dispparam-cabc-still-on-command-status",
+	"qcom,mdss-dsi-dispparam-cabc-movice-on-command-status",
+	"qcom,mdss-dsi-dispparam-cabc-off-command-status",
+#endif
+        "qcom,mdss-dsi-dispparam-hbm-on-command-state",
+        "qcom,mdss-dsi-dispparam-hbm-off-command-state",
 #ifdef CONFIG_TARGET_PROJECT_K7T
 	"qcom,mdss-dsi-doze-hbm-command-state",
 	"qcom,mdss-dsi-doze-lbm-command-state",
-	"qcom,mdss-dsi-dispparam-hbm-on-command-state",
-	"qcom,mdss-dsi-dispparam-hbm-off-command-state",
 	"qcom,mdss-dsi-hbm1-on-command-state",
 	"qcom,mdss-dsi-hbm2-on-command-state",
 	"qcom,mdss-dsi-dispparam-bc-90hz-command-state",
@@ -2171,9 +2279,16 @@ static int dsi_panel_parse_reset_sequence(struct dsi_panel *panel)
 	const u32 *arr;
 	struct dsi_parser_utils *utils = &panel->utils;
 	struct dsi_reset_seq *seq;
+	bool fts_reset_seq = false;
 
 	if (panel->host_config.ext_bridge_mode)
 		return 0;
+	
+	fts_reset_seq = utils->read_bool(utils->data,
+		"qcom,mdss-dsi-focaltech-reset-sequence");
+	
+	//if (fts_ts_variant && !fts_reset_seq) 
+	//	return 0;
 
 	arr = utils->get_property(utils->data,
 			"qcom,mdss-dsi-reset-sequence", &length);
@@ -2371,6 +2486,20 @@ static int dsi_panel_parse_gpios(struct dsi_panel *panel)
 		}
 	}
 
+	panel->reset_config.lcm_enp_gpio = utils->get_named_gpio(utils->data,
+					"qcom,lcm-enp-gpio", 0);
+	if (!gpio_is_valid(panel->reset_config.lcm_enp_gpio)) {
+			pr_err("[%s] lcm-enp-gpio is not set, rc=%d\n",
+				 panel->name, rc);
+	}
+
+	panel->reset_config.lcm_enn_gpio = utils->get_named_gpio(utils->data,
+					"qcom,lcm-enn-gpio", 0);
+	if (!gpio_is_valid(panel->reset_config.lcm_enn_gpio)) {
+			pr_err("[%s] lcm-enn-gpio is not set, rc=%d\n",
+				 panel->name, rc);
+	}
+
 	panel->reset_config.lcd_mode_sel_gpio = utils->get_named_gpio(
 		utils->data, mode_set_gpio_name, 0);
 	if (!gpio_is_valid(panel->reset_config.lcd_mode_sel_gpio))
@@ -2521,6 +2650,9 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel)
 
 	panel->bl_config.bl_inverted_dbv = utils->read_bool(utils->data,
 		"qcom,mdss-dsi-bl-inverted-dbv");
+
+	panel->bl_config.bl_move_high_8b = utils->read_bool(utils->data,
+		"qcom,mdss-dsi-bl-move-high-8b");
 
 	if (panel->bl_config.type == DSI_BACKLIGHT_PWM) {
 		rc = dsi_panel_parse_bl_pwm_config(panel);
@@ -3498,7 +3630,9 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 	struct dsi_parser_utils *utils;
 	const char *panel_physical_type;
 	int rc = 0;
-
+#ifdef CONFIG_TARGET_PROJECT_C3Q
+	bool dispparam_enabled = false;
+#endif
 	panel = kzalloc(sizeof(*panel), GFP_KERNEL);
 	if (!panel)
 		return ERR_PTR(-ENOMEM);
@@ -3523,6 +3657,19 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 				"qcom,mdss-dsi-panel-physical-type", NULL);
 	if (panel_physical_type && !strcmp(panel_physical_type, "oled"))
 		panel->panel_type = DSI_DISPLAY_PANEL_TYPE_OLED;
+
+#ifdef CONFIG_TARGET_PROJECT_C3Q
+	dispparam_enabled = utils->read_bool(utils->data,
+				"qcom,dispparam-enabled");
+
+	if (dispparam_enabled) {
+		pr_debug("[LCD]%s:%d Dispparam enabled.\n", __func__, __LINE__);
+		panel->dispparam_enabled = true;
+	} else {
+		pr_debug("[LCD]%s:%d Dispparam disabled.\n", __func__, __LINE__);
+		panel->dispparam_enabled = false;
+	}
+#endif
 	rc = dsi_panel_parse_host_config(panel);
 	if (rc) {
 		DSI_ERR("failed to parse host configuration, rc=%d\n",
@@ -3608,6 +3755,14 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 	rc = drm_panel_add(&panel->drm_panel);
 	if (rc)
 		goto error;
+
+	#ifdef CONFIG_TARGET_PROJECT_C3Q
+	else {
+		 
+               	//Because node in nvt_ts failed to count>0 
+		lcd_active_panel = &panel->drm_panel;
+	}
+	#endif
 
 	mutex_init(&panel->panel_lock);
 
@@ -4666,6 +4821,13 @@ int dsi_panel_enable(struct dsi_panel *panel)
 	if (panel->hbm_mode)
 		dsi_panel_apply_hbm_mode(panel);
 
+#ifdef CONFIG_TARGET_PROJECT_C3Q
+	if (panel->dispparam_enabled) {	
+		if (panel->cabc_mode)
+			dsi_panel_apply_cabc_mode(panel);
+	}
+#endif
+
 	mutex_lock(&panel->panel_lock);
 
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON);
@@ -4674,6 +4836,7 @@ int dsi_panel_enable(struct dsi_panel *panel)
 		       panel->name, rc);
 	else
 		panel->panel_initialized = true;
+#ifdef CONFIG_TARGET_PROJECT_K7T
 	DSI_INFO("[%s]: dsi panel send DSI_CMD_SET_ON\n", __func__);
 	if (panel->cur_mode->timing.refresh_rate == 90) {
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_BC_90HZ);
@@ -4685,6 +4848,7 @@ int dsi_panel_enable(struct dsi_panel *panel)
 			DSI_INFO("%s: refresh_rate = %d\n", __func__, panel->cur_mode->timing.refresh_rate);
 		}
 	}
+#endif
 	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
@@ -4806,8 +4970,10 @@ error:
 int dsi_panel_post_unprepare(struct dsi_panel *panel)
 {
 	int rc = 0;
+#ifdef CONFIG_TARGET_PROJECT_K7T
 	int power_status = DRM_PANEL_BLANK_POWERDOWN;
 	struct drm_panel_notifier notifier_data;
+#endif
 
 	if (!panel) {
 		DSI_ERR("invalid params\n");
@@ -4823,11 +4989,13 @@ int dsi_panel_post_unprepare(struct dsi_panel *panel)
 		goto error;
 	}
 
+#ifdef CONFIG_TARGET_PROJECT_K7T
 	notifier_data.data = &power_status;
 	notifier_data.refresh_rate = 90;
 	notifier_data.id = 1;
 	DSI_INFO("[%s]: dsi panel power off\n", __func__);
 	drm_panel_notifier_call_chain(&panel->drm_panel, DRM_PANEL_EARLY_EVENT_BLANK, &notifier_data);
+#endif
 
 error:
 	mutex_unlock(&panel->panel_lock);
@@ -4835,6 +5003,7 @@ error:
 }
 
 
+#ifdef CONFIG_TARGET_PROJECT_K7T
 void dsi_set_backlight_control(struct dsi_panel *panel,
 			 struct dsi_display_mode *adj_mode)
 {
@@ -4869,6 +5038,7 @@ void dsi_set_backlight_control(struct dsi_panel *panel,
 
 	return;
 }
+#endif
 
 int dsi_panel_apply_hbm_mode(struct dsi_panel *panel)
 {
@@ -4949,4 +5119,31 @@ static void __exit dsi_panel_dc_dim_exit(void)
 
 module_init(dsi_panel_dc_dim_init);
 module_exit(dsi_panel_dc_dim_exit);
+#endif
+
+#ifdef CONFIG_TARGET_PROJECT_C3Q
+int dsi_panel_apply_cabc_mode(struct dsi_panel *panel)
+{
+	static const enum dsi_cmd_set_type type_map[] = {
+		DSI_CMD_SET_DISP_CABC_OFF,
+		DSI_CMD_SET_DISP_CABC_UI_ON,
+		DSI_CMD_SET_DISP_CABC_STILL_ON,
+		DSI_CMD_SET_DISP_CABC_MOVIE_ON
+	};
+
+	enum dsi_cmd_set_type type;
+	int rc;
+
+	if (panel->cabc_mode >= 0 &&
+		panel->cabc_mode < ARRAY_SIZE(type_map))
+		type = type_map[panel->cabc_mode];
+	else
+		type = type_map[0];
+
+	mutex_lock(&panel->panel_lock);
+	rc = dsi_panel_tx_cmd_set(panel, type);
+	mutex_unlock(&panel->panel_lock);
+
+	return rc;
+}
 #endif
