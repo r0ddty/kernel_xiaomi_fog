@@ -2,9 +2,10 @@
 #
 # Compile script for uvite Kernel
 # Copyright (C) 2020-2021 Adithya R.
+# Adapted for Atlas kernel by rootd
 
 SECONDS=0 # builtin bash timer
-ZIPNAME="uvite-$(date '+%Y%m%d-%H%M')-spes.zip"
+ZIPNAME="Atlas-$(date '+%Y%m%d-%H%M')-fog.zip"
 TC_DIR="$(pwd)/tc/clang-r450784e"
 AK3_DIR="$(pwd)/android/AnyKernel3"
 DEFCONFIG="vendor/fog-perf_defconfig"
@@ -48,10 +49,9 @@ mkdir -p out
 make O=out ARCH=arm64 $DEFCONFIG
 
 echo -e "\nStarting compilation...\n"
-make -j$(nproc --all) O=out ARCH=arm64 CC=clang LD=ld.lld AS=llvm-as AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- LLVM=1 LLVM_IAS=1 Image.gz dtbo.img 2> >(tee log.txt >&2) || exit $?
+make -j$(nproc --all) O=out ARCH=arm64 CC=clang LD=ld.lld AS=llvm-as AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- LLVM=1 LLVM_IAS=1 Image.gz 2> >(tee log.txt >&2) || exit $?
 
 kernel="out/arch/arm64/boot/Image.gz"
-dtbo="out/arch/arm64/boot/dtbo.img"
 
 if [ -f "$kernel" ]; then
 	echo -e "\nKernel compiled succesfully! Zipping up...\n"
@@ -61,7 +61,7 @@ if [ -f "$kernel" ]; then
 		echo -e "\nAnyKernel3 repo not found locally and couldn't clone from GitHub! Aborting..."
 		exit 1
 	fi
-	cp $kernel $dtbo AnyKernel3
+	cp $kernel AnyKernel3
 	rm -rf out/arch/arm64/boot
 	cd AnyKernel3
 	git checkout master &> /dev/null
