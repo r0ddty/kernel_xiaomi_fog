@@ -1,7 +1,7 @@
 export TZ='Europe/Kyiv'
 
 KERNNAME="Atlas"
-KERNVER="B1"
+KERNVER="1B"
 BUILDDATE=$(date +%Y%m%d)
 # BUILDTIME=$(date +%H%M)
 
