@@ -65,7 +65,7 @@ read -p "Would you like to remove out/ directory? (Yy/Nn)" yn
 
 case $yn in
 	[yY] ) echo "Removing out/ directory";
-		rm -rf out/;;
+		rm -rf out;;
 	[nN] ) echo "Proceeding without removing out/ directory";; 
 
 	* ) echo "invalid response";;
@@ -75,7 +75,7 @@ read -p "Would you like to remove clang directory? (Yy/Nn)" yn
 
 case $yn in
 	[yY] ) echo "Removing clang directory";
-		rm -rf out/;;
+		rm -rf clang-llvm;;
 	[nN] ) echo "Proceeding without removing clang directory";; 
 
 	* ) echo "invalid response";;
