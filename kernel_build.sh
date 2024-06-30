@@ -13,8 +13,8 @@ wget "$(curl -s https://raw.githubusercontent.com/XSans0/WeebX-Clang/main/main/l
 mkdir clang-llvm && tar -xf weebx-clang.tar.gz -C clang-llvm && rm -rf weebx-clang.tar.gz
 
 # Set variable
-export KBUILD_BUILD_USER=alternoegraha
-export KBUILD_BUILD_HOST=Nurture
+export KBUILD_BUILD_USER=rootd
+export KBUILD_BUILD_HOST=cutiepatootie
 
 # Build
 # Prepare
@@ -23,12 +23,12 @@ make -j$(nproc --all) O=out ARCH=arm64 CC=$(pwd)/clang-llvm/bin/clang CROSS_COMP
 make -j$(nproc --all) O=out ARCH=arm64 CC=$(pwd)/clang-llvm/bin/clang CROSS_COMPILE=aarch64-linux-gnu- CLANG_TRIPLE=aarch64-linux-gnu- LLVM_IAS=1
 
 # Package
-git clone --depth=1 https://github.com/alternoegraha/AnyKernel3-680 -b master AnyKernel3
+git clone --depth=1 https://github.com/r0ddty/AnyKernel3-680 -b master AnyKernel3
 cp -R out/arch/arm64/boot/Image.gz AnyKernel3/Image.gz
 # Zip it and upload it
 cd AnyKernel3
-zip -r9 Mi680-WeatheringWithYou-R3-refresh-"$BUILDDATE" . -x ".git*" -x "README.md" -x "*.zip"
-curl -T Mi680-WeatheringWithYou-R3-refresh-"$BUILDDATE".zip https://pixeldrain.com/api/file/
+zip -r9 Atlas-B1-"$BUILDDATE" . -x ".git*" -x "README.md" -x "*.zip"
+curl -T Atlas-B1-"$BUILDDATE".zip https://pixeldrain.com/api/file/
 # finish
 cd ..
 rm -rf clang-llvm/ out/ AnyKernel3/
