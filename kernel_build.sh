@@ -1,4 +1,4 @@
-export TZ='Asia/Jakarta'
+export TZ='Europe/Kyiv'
 BUILDDATE=$(date +%Y%m%d)
 # BUILDTIME=$(date +%H%M)
 
