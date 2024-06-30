@@ -37,7 +37,7 @@ zip -r9 "$KERNNAME"-"$KERNVER"-"$BUILDDATE" . -x ".git*" -x "README.md" -x "*.zi
 
 # Lemme move kernel zip to the root of source
 
-mv "$KERNNAME"-"$KERNVER"-"$BUILDDATE" ../
+mv "$KERNNAME"-"$KERNVER"-"$BUILDDATE".zip ../
 cd ..
 
 rm go-pd*
