@@ -1,7 +1,7 @@
 export TZ='Europe/Kyiv'
 
 KERNNAME="Atlas"
-KERNVER="1B"
+KERNVER="1BKSU"
 BUILDDATE=$(date +%Y%m%d)
 # BUILDTIME=$(date +%H%M)
 
@@ -26,7 +26,7 @@ make -j$(nproc --all) O=out ARCH=arm64 CC=$(pwd)/clang-llvm/bin/clang CROSS_COMP
 make -j$(nproc --all) O=out ARCH=arm64 CC=$(pwd)/clang-llvm/bin/clang CROSS_COMPILE=aarch64-linux-gnu- CLANG_TRIPLE=aarch64-linux-gnu- LLVM_IAS=1
 
 # Package
-git clone --depth=1 https://github.com/r0ddty/AnyKernel3-680 -b master AnyKernel3
+git clone --depth=1 https://github.com/r0ddty/AnyKernel3-680 -b ksu AnyKernel3
 cp -R out/arch/arm64/boot/Image.gz AnyKernel3/Image.gz
 # Zip it and upload it
 cd AnyKernel3
