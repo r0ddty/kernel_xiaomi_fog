@@ -115,7 +115,6 @@ source "fs/autofs/Kconfig"
 source "fs/fuse/Kconfig"
 source "fs/overlayfs/Kconfig"
 source "fs/incfs/Kconfig"
-source "fs/erofs/Kconfig"
 
 menu "Caches"
 
