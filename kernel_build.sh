@@ -1,7 +1,7 @@
 export TZ='Europe/Kyiv'
 
 KERNNAME="Atlas"
-KERNVER="1B"
+KERNVER="2A"
 BUILDDATE=$(date +%Y%m%d)
 # BUILDTIME=$(date +%H%M)
 
@@ -17,7 +17,7 @@ mkdir clang-llvm && tar -xf weebx-clang.tar.gz -C clang-llvm && rm -rf weebx-cla
 
 # Set variable
 export KBUILD_BUILD_USER=rootd
-export KBUILD_BUILD_HOST=cutiepatootie
+export KBUILD_BUILD_HOST=cutie
 
 # Build
 # Prepare
@@ -26,7 +26,7 @@ make -j$(nproc --all) O=out ARCH=arm64 CC=$(pwd)/clang-llvm/bin/clang CROSS_COMP
 make -j$(nproc --all) O=out ARCH=arm64 CC=$(pwd)/clang-llvm/bin/clang CROSS_COMPILE=aarch64-linux-gnu- CLANG_TRIPLE=aarch64-linux-gnu- LLVM_IAS=1
 
 # Package
-git clone --depth=1 https://github.com/r0ddty/AnyKernel3-680 -b master AnyKernel3
+git clone --depth=1 https://github.com/r0ddty/AnyKernel3-680 -b erofs AnyKernel3
 cp -R out/arch/arm64/boot/Image.gz AnyKernel3/Image.gz
 # Zip it and upload it
 cd AnyKernel3
