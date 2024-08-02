@@ -24,7 +24,7 @@ struct erofs_map_blocks;
 #define show_mflags(flags) __print_flags(flags, "",	\
 	{ EROFS_MAP_MAPPED,	"M" },			\
 	{ EROFS_MAP_META,	"I" },			\
-	{ EROFS_MAP_ENCODED,	"E" })
+	{ EROFS_MAP_ZIPPED,	"Z" })
 
 TRACE_EVENT(erofs_lookup,
 
@@ -35,20 +35,20 @@ TRACE_EVENT(erofs_lookup,
 	TP_STRUCT__entry(
 		__field(dev_t,		dev	)
 		__field(erofs_nid_t,	nid	)
-		__string(name,		dentry->d_name.name	)
+		__field(const char *,	name	)
 		__field(unsigned int,	flags	)
 	),
 
 	TP_fast_assign(
 		__entry->dev	= dir->i_sb->s_dev;
 		__entry->nid	= EROFS_I(dir)->nid;
-		__assign_str(name, dentry->d_name.name);
+		__entry->name	= dentry->d_name.name;
 		__entry->flags	= flags;
 	),
 
 	TP_printk("dev = (%d,%d), pnid = %llu, name:%s, flags:%x",
 		show_dev_nid(__entry),
-		__get_str(name),
+		__entry->name,
 		__entry->flags)
 );
 
@@ -113,10 +113,10 @@ TRACE_EVENT(erofs_readpage,
 
 TRACE_EVENT(erofs_readpages,
 
-	TP_PROTO(struct inode *inode, pgoff_t start, unsigned int nrpage,
+	TP_PROTO(struct inode *inode, struct page *page, unsigned int nrpage,
 		bool raw),
 
-	TP_ARGS(inode, start, nrpage, raw),
+	TP_ARGS(inode, page, nrpage, raw),
 
 	TP_STRUCT__entry(
 		__field(dev_t,		dev	)
@@ -129,7 +129,7 @@ TRACE_EVENT(erofs_readpages,
 	TP_fast_assign(
 		__entry->dev	= inode->i_sb->s_dev;
 		__entry->nid	= EROFS_I(inode)->nid;
-		__entry->start	= start;
+		__entry->start	= page->index;
 		__entry->nrpage	= nrpage;
 		__entry->raw	= raw;
 	),
