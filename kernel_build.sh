@@ -21,7 +21,7 @@ NC='\033[0m'
 if [ ! -e clang-llvm ]
 then
     echo -e "${GREEN}clang not found, cloning Azure clang...${NC}"
-    git clone -b main https://gitlab.com/Panchajanya1999/azure-clang clang-llvm
+    git clone --depth 1 -b main https://gitlab.com/Panchajanya1999/azure-clang clang-llvm
 else
     echo -e "${GREEN}clang already present, proceeding...${NC}"
 fi
