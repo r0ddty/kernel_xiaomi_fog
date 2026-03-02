@@ -1,0 +1,49 @@
+name: Build Andromeda A13
+on: [workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Build Essentials
+        run: |
+          sudo apt update
+          sudo apt install -y bc cpio bison flex gcc git libssl-dev make clang gcc-aarch64-linux-gnu libelf-dev zip zstd
+
+      - name: Clone Source & Clang
+        run: |
+          # Use the verified 'fog' repository for Android 13
+          git clone --depth=1 https://github.com/r0ddty/kernel_xiaomi_fog kernel
+          # Use Azure Clang for better hardware support
+          git clone --depth=1 https://gitlab.com/Panchajanya1999/azure-clang clang
+
+      - name: Patch for Internal Injection
+        run: |
+          cd kernel/drivers/staging/qcacld-3.0/core/hdd/src/
+          # Unlock monitor mode transmission
+          sed -i '/if (adapter->device_mode == QDF_STA_MODE)/c\    if (adapter->device_mode == QDF_STA_MODE || adapter->device_mode == QDF_MONITOR_MODE)' wlan_hdd_tx_rx.c
+          # Force firmware capability reporting
+          sed -i 's/return hdd_get_ext_cap_ptr(adapter)->wlan_ext_cap_serv212;/return 1;/g' wlan_hdd_main.c
+
+      - name: Compile Kernel
+        run: |
+          cd kernel
+          export ARCH=arm64
+          export CROSS_COMPILE=$(pwd)/../clang/bin/aarch64-linux-gnu-
+          export CC=$(pwd)/../clang/bin/clang
+          # Configure for Redmi 10C (fog)
+          make vendor/fog-perf_defconfig
+          # Enable raw packet support for aircrack-ng
+          ./scripts/config -e CONFIG_PACKET
+          ./scripts/config -e CONFIG_NET_RAW
+          # Start build using the Azure Clang toolchain
+          make -j$(nproc) LLVM=1 LLVM_IAS=1
+
+      - name: Upload Flashable Kernel
+        uses: actions/upload-artifact@v4
+        with:
+          name: Andromeda-A13-Inject
+          path: kernel/arch/arm64/boot/Image.gz-dtb
