@@ -63,4 +63,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Redmi10C-Monitor+Injection-Kernel
-          path: "*.zip"￼Enter
+          path: "*.zip"Enter
