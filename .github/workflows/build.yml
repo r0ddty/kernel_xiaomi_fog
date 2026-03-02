@@ -15,9 +15,9 @@ jobs:
 
       - name: Clone Source & Clang
         run: |
-          # Cloning stable fog source for Android 13
-          git clone --depth=1 https://github.com/r0ddty/kernel_xiaomi_fog -b twelve kernel
-          # Cloning Azure Clang for better compilation
+          # Use the verified 'fog' repository for Android 13
+          git clone --depth=1 https://github.com/r0ddty/kernel_xiaomi_fog kernel
+          # Use Azure Clang for better hardware support
           git clone --depth=1 https://gitlab.com/Panchajanya1999/azure-clang clang
 
       - name: Patch for Internal Injection
@@ -34,17 +34,16 @@ jobs:
           export ARCH=arm64
           export CROSS_COMPILE=$(pwd)/../clang/bin/aarch64-linux-gnu-
           export CC=$(pwd)/../clang/bin/clang
-          # Configure for Redmi 10C
+          # Configure for Redmi 10C (fog)
           make vendor/fog-perf_defconfig
-          # Enable raw packet support
+          # Enable raw packet support for aircrack-ng
           ./scripts/config -e CONFIG_PACKET
           ./scripts/config -e CONFIG_NET_RAW
-          # Start build
+          # Start build using the Azure Clang toolchain
           make -j$(nproc) LLVM=1 LLVM_IAS=1
 
       - name: Upload Flashable Kernel
         uses: actions/upload-artifact@v4
         with:
           name: Andromeda-A13-Inject
-          path: kernel/out/arch/arm64/boot/Image.gz-dtb
-
+          path: kernel/arch/arm64/boot/Image.gz-dtb
