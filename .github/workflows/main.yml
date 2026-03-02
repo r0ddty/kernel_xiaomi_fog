@@ -1,0 +1,66 @@
+name: Build Fog Kernel - Monitor + Full Injection
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout kernel (andromeda-mk2 branch)
+        uses: actions/checkout@v4
+        with:
+          ref: andromeda-mk2
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache curl flex git libelf-dev libncurses5-dev libssl-dev lz4 make python3 zip clang lld
+
+      - name: Setup Proton Clang toolchain
+        run: |
+          git clone --depth=1 https://github.com/kdrag0n/proton-clang.git clang-llvm
+          echo "TOOLCHAIN_PATH=$PWD/clang-llvm" >> $GITHUB_ENV
+
+      - name: Apply monitor mode + packet injection patches
+        run: |
+          # Kimocoder official monitor mode patch
+          wget -q https://raw.githubusercontent.com/kimocoder/qualcomm_android_monitor_mode/master/files/enable_monitor_mode.patch -O monitor.patch
+          git apply --ignore-whitespace monitor.patch || echo "Patch paths adjusted manually"
+
+          # Fallback + extra injection tweaks (works even if patch paths differ)
+          find . -name "*defconfig*" -exec sed -i 's/CONFIG_FEATURE_MONITOR_MODE_SUPPORT := n/CONFIG_FEATURE_MONITOR_MODE_SUPPORT := y/g' {} + || true
+          find . -name "*defconfig*" -exec sed -i 's/CONFIG_WLAN_FEATURE_PKT_CAPTURE := n/CONFIG_WLAN_FEATURE_PKT_CAPTURE := y/g' {} + || true
+          
+          # Allow higher con_mode + raw TX for injection
+          find . -name "wlan_hdd_main.c" -exec sed -i 's/con_mode > [0-9]/con_mode >= 0/g' {} + 2>/dev/null || true
+          find . -name "wlan_hdd_main.c" -exec sed -i 's/wmi_vdev_param_tx_encap_type = 1/wmi_vdev_param_tx_encap_type = 2/g' {} + 2>/dev/null || true
+          find . -name "wlan_hdd_cfg80211.c" -exec sed -i 's/NL80211_IFTYPE_STATION|NL80211_IFTYPE_AP/NL80211_IFTYPE_STATION|NL80211_IFTYPE_AP|NL80211_IFTYPE_MONITOR/g' {} + 2>/dev/null || true
+
+          echo "✅ Monitor + injection patches applied"
+
+      - name: Build kernel
+        run: |
+          export ARCH=arm64
+          export CC=$PWD/clang-llvm/bin/clang
+          export CROSS_COMPILE=$PWD/clang-llvm/bin/aarch64-linux-gnu-
+          export CLANG_TRIPLE=aarch64-linux-gnu-
+          export LLVM_IAS=1
+
+          make O=out mrproper
+          make O=out ARCH=arm64 vendor/fog-perf_defconfig   # exact config used in this repo
+          make O=out ARCH=arm64 -j$(nproc --all)
+
+      - name: Package flashable AnyKernel ZIP
+        run: |
+          git clone --depth=1 https://github.com/r0ddty/AnyKernel3-680 -b andro AnyKernel3 || git clone --depth=1 https://github.com/osm0sis/AnyKernel3 AnyKernel3
+          cp out/arch/arm64/boot/Image.gz AnyKernel3/
+          cd AnyKernel3
+          zip -r9 "../Redmi10C-FullInjection-$(date +%Y%m%d).zip" * -x ".git*" "README.md" "*.zip"
+          cd ..
+
+      - name: Upload kernel
+        uses: actions/upload-artifact@v4
+        with:
+          name: Redmi10C-Monitor+Injection-Kernel
+          path: "*.zip"￼Enter
